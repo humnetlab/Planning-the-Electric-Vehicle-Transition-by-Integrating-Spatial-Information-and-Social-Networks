@@ -8,7 +8,7 @@ The transition from gasoline-powered vehicles to plug-in electric vehicles (PEVs
 <br/>
 <br/>
 <p align="center">
-  <img src="figures/overview.jpg" width="900">
+  <img src="figure/overview.jpg" width="900">
   <br><i> </i>
 </p>
 
