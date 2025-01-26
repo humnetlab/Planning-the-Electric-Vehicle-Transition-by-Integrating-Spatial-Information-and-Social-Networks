@@ -38,6 +38,15 @@ We use different datasets in this study: US Census Bureau American Community Sur
 |      [Census Bureau American<br>Community Survey](https://data.census.gov/)      	|      United States     	|     2010~2023     	|       Census Tract      	|         Year        	|
 
 
+Below is the overview of the dataset.
+<br/>
+<br/>
+<p align="center">
+  <img src="figure/fig1_overview.pdf" width="900">
+  <br><i> </i>
+</p>
+
+
 <h2 id="Method">Method</h2>
 
 ### Market Segmentation
@@ -87,14 +96,14 @@ pip install -r requirements.txt
 
 ### Running the demo scripts
 The structure of code:
-- [SimAdopter.py](model/NetworkPrep.py): Simulate demographics of potential adopters, also estimate the probability of being an EV adopter.
-- [SimMobility.py](model/NetworkCreators.py): Mobility simulation based on TimeGeo outputs.
-- [SimAdopter.py](model/NetworkParameter.py): Simulate demographics of potential adopters, also estimate the probability of being an EV adopter.
-- [SimAdopter.py](model/SearchParameter.py): Simulate demographics of potential adopters, also estimate the probability of being an EV adopter.
-- [SimBehavior.py](model/SimulateParameter.py): Simulate charging behavior.
+- [NetworkPrep.py](model/NetworkPrep.py): Preprocess the adoption data and demographics data.
+- [NetworkCreators.py](model/NetworkCreators.py): Create social network with ingredients of preferential attachment and distance selection.
+- [NetworkParameter.py](model/NetworkParameter.py): Locate the initial guess of p and q through regression model.
+- [SearchParameter.py](model/SearchParameter.py): Search optimal p and q around initial guess with heuristics. 
+- [SearchParameter.py](model/SearchParameter.py): Simulate diffusion process with estimated p and q.
 
 
 To run demo code for simulation and analysis:
-- [RunState.py](model/RunState.py): Charging behavior and shifting recommendation simulation.
-- [RunCounty.py](model/RunCounty.py): Charging behavior and shifting recommendation simulation.
+- [RunState.py](model/RunState.py): Running adoption model calibration and simulation for Washington and California states.
+- [RunCounty.py](model/RunCounty.py): Running adoption model calibration and simulation for a selected county.
 - [VisDataFinal.py](analysis/VisDataFinal.py): Analysis and visualization of simulation results.
