@@ -38,7 +38,7 @@ We use different datasets in this study: US Census Bureau American Community Sur
 |      [Census Bureau American<br>Community Survey](https://data.census.gov/)      	|      United States     	|     2010~2023     	|       Census Tract      	|         Year        	|
 
 
-Below is the overview of the dataset.
+Below is the overview of the dataset. (A,D) State-level yearly total adoption rate (circle marker) and new adoption rate (square marker) in Washington (blue) and California (orange) from 2010 to 2022. (B,E) Maps of county-level cumulative adoption rate in Washington (blue) and California (orange) in 2022. (C,F) Correlation between the adoption rate and the corresponding median household income of all census tracts in Washington (blue) and California (orange) in 2022. The regression line given the adoption rate and the corresponding median household income, as well as the 95% confidence interval for the regression, are shown with points.
 <br/>
 <br/>
 <p align="center">
