@@ -71,7 +71,7 @@ We construct social networks with ingredients of preferential attachment and dis
 
 $$prob_{i\rightarrow j} \propto \frac{K(k_{j})}{D(d_{ij})},$$
 
-where $k_{j}$ is the connectivity of node $j$, $d_{ij}$ is the distance in kilometers between nodes $i$ and $j$, and $K(.)$ and $D(.)$ are given functions. For each inactive node, we sample $k_r=3$ edges so that the average connectivity will be $\langle k \rangle = 2k_r$, and make the node $i$ active. Finally (3), go back to (2) until all nodes are active. To include preferential attachment and distance selection, we use $K(k) = k+1$ and $D(d) = d^{\gamma}$, where $\gamma=1,3,10$. We visualize this algorithm in Fig. 2. 
+where $k_{j}$ is the connectivity of node $j$, $d_{ij}$ is the distance in kilometers between nodes $i$ and $j$, and $K(.)$ and $D(.)$ are given functions. For each inactive node, we sample $k_r=3$ edges so that the average connectivity will be $\langle k \rangle = 2k_r$, and make the node $i$ active. Finally (3), go back to (2) until all nodes are active. To include preferential attachment and distance selection, we use $K(k) = k+1$ and $D(d) = d^{\gamma}$, where $\gamma=1,3,10$.
 
 #### Simulation Procedure
 
