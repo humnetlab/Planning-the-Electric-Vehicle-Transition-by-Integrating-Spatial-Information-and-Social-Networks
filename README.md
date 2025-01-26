@@ -42,7 +42,7 @@ Below is the overview of the dataset.
 <br/>
 <br/>
 <p align="center">
-  <img src="figure/fig1_overview.pdf" width="900">
+  <img src="figure/fig1_overview.png" width="900">
   <br><i> </i>
 </p>
 
