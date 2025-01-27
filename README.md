@@ -88,10 +88,10 @@ We follow the method in [[3]](https://www.nature.com/articles/s41598-020-72137-w
 <h2 id="Setup">Setup</h2>
 
 ### Installation
-In order to install all the required files, create a virtual environment and install the files given in `requirements.txt` file.
+In order to install all the required files, create a virtual environment with `environment.yml` file.
 
 ```
-pip install -r requirements.txt
+conda env create -f environment.yml
 ```
 
 ### Implementation
@@ -109,4 +109,7 @@ The structure of code:
 To run demo code for simulation and analysis:
 - [RunState.py](model/RunState.py): Running adoption model calibration and simulation for Washington and California states.
 - [RunCounty.py](model/RunCounty.py): Running adoption model calibration and simulation for a selected county.
+- [CaseStudyLA.ipynb](model/CaseStudyLA.ipynb): Running case study in Los Angeles.
+- [SupplementaryInfo.ipynb](model/SupplementaryInfo.ipynb): Running results for supplementary information.
 - [VisDataFinal.py](analysis/VisDataFinal.py): Analysis and visualization of simulation results.
+
