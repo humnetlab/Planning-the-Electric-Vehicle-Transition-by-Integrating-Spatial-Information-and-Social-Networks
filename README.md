@@ -3,7 +3,7 @@
 #### Jiaman Wu, Ariel Salgado and Marta C. Gonzalez
 
 ## Overview
-The transition from gasoline-powered vehicles to plug-in electric vehicles (PEVs) presents a promising avenue for reducing greenhouse gas emissions. Spatial forecasts of PEV adoption are essential to facilitate this shift as they enable preparation for power grid adaptation. However, forecasting is hindered by the limited data availability at this early stage of adoption. Multiple model calibrations can match current adoption trends but yield divergent forecasts. By leveraging empirical data from places with leading adopters in the US, this study shows that taking into account the spatial and social structure linking potential PEV adopters leads to forecasts of only 25% of the current predictions for 2050. Additionally, spatial social networks reproduce the temporal evolution of the empirical spatial auto-correlations over the last twelve years. At last, the study evaluates the potential impact of various PEV marketing campaigns under prevailing uncertainties, emphasizing the need to tailor strategies to network dynamics for effective PEV promotion.
+The transition from gasoline-powered vehicles to plug-in electric vehicles (PEVs) presents a promising avenue for reducing greenhouse gas emissions. Spatial forecasts of PEV adoption are essential to facilitate this shift as they enable preparation for power grid adaptation. However, forecasting is hindered by the limited data availability at this early stage of adoption. Multiple model calibrations can match current adoption trends but yield divergent forecasts. By leveraging empirical data from places with leading adopters in the US, this study shows that taking into account the spatial and social structure linking potential PEV adopters leads to forecasts of only a third of the current predictions for 2050. Additionally, spatial social networks reproduce the temporal evolution of the empirical spatial auto-correlations over the last twelve years. At last, the study evaluates the potential impact of various PEV marketing campaigns under prevailing uncertainties, emphasizing the need to tailor strategies to network dynamics for effective PEV promotion.
 
 <br/>
 <br/>
@@ -23,7 +23,7 @@ The transition from gasoline-powered vehicles to plug-in electric vehicles (PEVs
 [Setup](#Setup)
 
 <h2 id="Abstract">Abstract</h2>
-In this work, we investigate how spatial social networks influence PEV adoption forecasts by comparing benchmark adoption models at different spatial scales. We first aggregate individual purchase records at state, county, and census tract levels, and then we fit the empirical adoption trends at different levels of spatial aggregation in Washington and California. To that end, we consider two versions of the Bass model: the original BM and the Social Network BM (SocNet BM). We find that before 2022, PEV adoption was primarily driven by individual choices rather than social influences, a dynamic which cannot continue. As a result, both models can be calibrated to fit data up to 2022, but including or excluding social network effects leads to a fourfold difference in projections by 2050. We observe that SocNet BM characterizes the temporal evolution of spatial auto-correlation better than the State/County BM. Also, with limited data, a combination of parameter sets of SocNet BM can fit the current adoption trend but lead to very different forecasts. At last, we point out that promotion campaigns should be designed based on the understanding of spatial social network structure in the area of interest as the effectiveness of campaigns is tied to the local socio-demographical structure. Altogether, the study offers insights on the forecast based on early adopters that is valuable to planning power grid demand and the allocation of charging infrastructure.
+In this work, we investigate how spatial social networks influence PEV adoption forecasts by comparing benchmark adoption models at different spatial scales. We first aggregate individual purchase records at state, county, and census tract levels, and then we fit the empirical adoption trends at different levels of spatial aggregation in Washington and California. To that end, we consider two versions of the Bass model: the original BM and the Social Network BM (SocNet BM). We find that before 2022, PEV adoption was primarily driven by individual choices rather than social influences, a dynamic which cannot continue. As a result, both models can be calibrated to fit data up to 2022, but including or excluding social network effects leads to a threefold difference in projections by 2050. We observe that SocNet BM characterizes the temporal evolution of spatial auto-correlation better than the State/County BM. Also, with limited data, a combination of parameter sets of SocNet BM can fit the current adoption trend but lead to very different forecasts. At last, we point out that promotion campaigns should be designed based on the understanding of spatial social network structure in the area of interest as the effectiveness of campaigns is tied to the local socio-demographical structure. Altogether, the study offers insights on the forecast based on early adopters that is valuable to planning power grid demand and the allocation of charging infrastructure.
 
 
 <h2 id="Dataset">Dataset</h2>
@@ -112,4 +112,14 @@ To run demo code for simulation and analysis:
 - [CaseStudyLA.ipynb](model/CaseStudyLA.ipynb): Running case study in Los Angeles.
 - [SupplementaryInfo.ipynb](model/SupplementaryInfo.ipynb): Running results for supplementary information.
 - [VisDataFinal.py](analysis/VisDataFinal.py): Analysis and visualization of simulation results.
+
+In order to run fitting and simualtion for all states, use the following command.
+
+```
+cd model
+```
+
+```
+nohup python -u RunState.py > state_log.log &
+```
 
