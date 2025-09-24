@@ -109,7 +109,6 @@ The structure of code:
 Scripts above are connected as below:
 
 <br/>
-<br/>
 <p align="center">
   <img src="figure/code.png" width="900">
   <br><i> </i>
