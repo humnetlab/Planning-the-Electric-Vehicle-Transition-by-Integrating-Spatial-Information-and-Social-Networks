@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import numpy as np
+import pandas as pd
 import networkit as nk
 import networkx as nx
 import copy
@@ -8,7 +10,11 @@ import pickle
 import matplotlib.pyplot as plt
 import powerlaw
 
-# Three group based on income distribution
+# -------------------------------------------------------------------
+# Helper: map income-class labels to integer codes for faster storage
+# High -> 2, Middle -> 1, (else) Low -> 0
+# `input_args` is expected to contain keys 'class' and 'state'
+# -------------------------------------------------------------------
 def generate_class(input_args):
     classid = input_args['class']
     state = input_args['state']
@@ -19,6 +25,24 @@ def generate_class(input_args):
     else:
         return 0    
 
+# -------------------------------------------------------------------
+# NetworkCreators
+# Builds a socio-spatial network (nodes scaled from population; edges
+# drawn with distance-based preferential attachment). Inherits from
+# NetworKit's Graph to enable fast graph ops.
+# 
+# Parameter vector `par` (by index as used in your code):
+#   0: homo (homophily; not used directly in edge step here)
+#   1: r_exp (distance exponent; negative => exp decay, positive => power law)
+#   2: k_exp (degree exponent; placeholder in this version)
+#   3: k_min (minimum degree; placeholder in this version)
+#   4: start (seeding strategy; >0 random seeding, <0 targeted)
+#   5: year  (used in file naming / seeding curves)
+#   6: class_focus (e.g., 'random','low','middle','high' for targeted seeds)
+#   7: designed_node_number (target synthetic population size)
+#   8: state (e.g., 'ca')
+#   9: county (e.g., 'Los Angeles')
+# -------------------------------------------------------------------
 class NetworkCreators(nk.graph.Graph):
     def __init__(self, n, par):
         super().__init__()
@@ -34,20 +58,34 @@ class NetworkCreators(nk.graph.Graph):
         self.par = par
         self.node_attributes_attachment = {}
         self.node_attribute_dict = {}
-        self.node_list = []
-        self.node_tract = []
-        self.seed_node_reset = {}
+        self.node_list = []             # stores class per node (0/1/2)
+        self.node_tract = []            # stores tract index per node
+        self.seed_node_reset = {}       # copy of initial seed dict for resets
+
+        # Paths to inputs/outputs (relative to this file)
         self.TRACT_COORDINATES_PATH = os.path.join(os.path.dirname(__file__), '..', 'data',self.state, self.county,'tract_coord.csv')
         self.M_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', self.state, self.county, 'M.npy')
         self.DEMO_PATH = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'data', self.state, self.county, 'demo_data.csv'))
         self.RESULT_PATH = os.path.join(os.path.dirname(__file__), '..', 'result',self.state, self.county)
+
+        # Map GEOID (string) -> integer index used to address distance matrix M.npy
         self.tract_idx_dict = pd.read_csv(self.TRACT_COORDINATES_PATH).reset_index().set_index('GEOID')['index'].to_dict()
+
+        # Ensure results directory exists
         if not os.path.exists(self.RESULT_PATH):
             os.makedirs(self.RESULT_PATH)
 
+    # ----------------------------------------------------------------
+    # Set scaling factor: down/up-scale tract populations to target
+    # number of modeled nodes
+    # ----------------------------------------------------------------
     def set_scale_value(self, true_value, model_value):
         self.scale = model_value/true_value
     
+    # ----------------------------------------------------------------
+    # Define node attributes and attach typed attribute arrays to graph
+    # - 'class' is provided by generate_class at creation time
+    # ----------------------------------------------------------------
     def generate_node_initial(self):
         attribute_dict = {
             "class": generate_class,
@@ -70,21 +108,33 @@ class NetworkCreators(nk.graph.Graph):
         }
         self.node_attribute_dict = attribute_dict
         for key in attribute_dict:
+            # NetworKit attaches a typed storage for each attribute
             self.node_attributes_attachment[key] = self.attachNodeAttribute(key, attribute_type_dict[key])
 
+    # ----------------------------------------------------------------
+    # Create `number` nodes, assigning attributes from `attribute_dict`
+    # For callable values (e.g., class), call with **kwargs
+    # Also store class and tract-index for fast later access
+    # ----------------------------------------------------------------
     def generate_nodes_attribute(self, number: int, attribute_dict, **kwargs):
         for node_id in range(self.current_node_number, self.current_node_number + number):
             self.addNode()
             for key, function in attribute_dict.items():
                 if callable(function):
-                    value = function(**kwargs)
+                    value = function(**kwargs)  # e.g., class via generate_class
                 else:
                     value = function
                 self.node_attributes_attachment[key][node_id] = value
+            # Save class (int) and mapped tract index (int)
             self.node_list += [int(self.node_attributes_attachment['class'][node_id])]
             self.node_tract += [self.tract_idx_dict[int(self.node_attributes_attachment['tract'][node_id])]]
         self.current_node_number += number
 
+    # ----------------------------------------------------------------
+    # Build all nodes from demographic CSV:
+    #   - scale each tract’s population
+    #   - create that many nodes with tract/county/class attributes
+    # ----------------------------------------------------------------
     def generate_nodes(self):
         self.generate_node_initial()
         data = pd.read_csv(self.DEMO_PATH,converters={'GEOID': str})
@@ -99,14 +149,25 @@ class NetworkCreators(nk.graph.Graph):
             temp_attribute_dict.update({"county": str(item['COUNTY'])})
             input_args = {"class": item['CLASS'], "state":self.state}
             self.generate_nodes_attribute(number, temp_attribute_dict, input_args = input_args)
+            
+        # np.save(...) lines omitted (kept commented as in your original)
 
+    # ----------------------------------------------------------------
+    # Generate (or load) edge list using a distance-weighted process:
+    #   - Start with a few 'active' nodes
+    #   - Repeatedly choose an inactive node and connect it to n_rep
+    #     active nodes with probability ~ (deg+1) * f(distance)
+    #   - If r_exp < 0: exponential decay with distance
+    #     Else        : power-law decay with distance^r_exp
+    # Saves mixing matrix, degree list, distances, clustering, assortativity.
+    # ----------------------------------------------------------------
     def generate_edge_list(self):
         if os.path.isfile(
             os.path.join(self.RESULT_PATH,'edge_list_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy')
         ):  
             print('edge list found...')
             self.edge_list = np.load(os.path.join(self.RESULT_PATH,'edge_list_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'))
-            D = np.load(self.M_PATH)
+            D = np.load(self.M_PATH)  # distance matrix between tracts
             self.D = D
             self.node_tract = np.array(self.node_tract)
             return
@@ -117,57 +178,70 @@ class NetworkCreators(nk.graph.Graph):
         self.D = D
         self.node_tract = np.array(self.node_tract)
         
-        n_node = self.current_node_number; n_rep = 3; rc = 1
+        n_node = self.current_node_number; n_rep = 3; rc = 1  # rc unused but preserved
         nodes = list(range(n_node))
 
-        active_nodes = np.random.choice(nodes,n_rep) 
+        active_nodes = np.random.choice(nodes,n_rep)  # seed active set
         inactive_nodes = list(set(nodes)-set(active_nodes))
-        K = np.zeros(n_node)
-        R = []
+        K = np.zeros(n_node)  # track degree during construction
+        R = []               # distances of formed edges
         edges = []
 
+        # Main attachment loop until all nodes are active
         while(inactive_nodes):
             inactive_node = np.random.choice(inactive_nodes,1)[0]
             inactive_node_tract = self.node_tract[inactive_node]
             active_nodes_tract = self.node_tract[active_nodes]
             if self.r_exp < 0:
+                # Exponential distance penalty: exp(d/|r_exp|)
                 p_vec_norm = (K[active_nodes]+1)/np.exp(D[inactive_node_tract,active_nodes_tract]/abs(self.r_exp))
             else:
+                # Power-law distance penalty: d^(r_exp)
                 p_vec_norm = (K[active_nodes]+1)/(D[inactive_node_tract,active_nodes_tract])**self.r_exp
             p_vec_norm = p_vec_norm/sum(p_vec_norm)
 
+            # Choose n_rep active nodes according to probability weights
             active_node_p = np.random.choice(active_nodes, n_rep, p = p_vec_norm, replace=False)
             for active_node in active_node_p:
                 edges.append((inactive_node,active_node))
                 R.append(D[self.node_tract[inactive_node],self.node_tract[active_node]])
                 K[inactive_node] = K[inactive_node]+1; K[active_node] = K[active_node]+1
+                # Move inactive_node into active set
                 inactive_nodes = list(set(inactive_nodes)-set([inactive_node]))
                 active_nodes = list(set(active_nodes)|set([inactive_node]))
         
         self.edge_list = edges
+        np.save(os.path.join(self.RESULT_PATH, 'edge_list_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'), np.array(self.edge_list))
         
+        # Build a temporary NetworkX graph for attribute-based stats
         G=nx.Graph()
         G.add_edges_from(self.edge_list)
         for node in self.iterNodes():
+            # Attach human-readable class labels for mixing/assortativity
             if self.node_attributes_attachment['class'][node] == 0:
                 G.add_node(node,classes='low')
             if self.node_attributes_attachment['class'][node] == 1:
                 G.add_node(node,classes='mid')
             if self.node_attributes_attachment['class'][node] == 2:
                 G.add_node(node,classes='high')
-        H = nx.attribute_assortativity_coefficient(G,'classes')   
-        C = pd.DataFrame.from_dict(nx.clustering(G), orient='index').sort_index()[0].values
-        M = nx.attribute_mixing_matrix(G, 'classes', mapping={'low': 0, 'mid': 1, 'high':2})
+        H = nx.attribute_assortativity_coefficient(G,'classes')   # class assortativity
+        C = pd.DataFrame.from_dict(nx.clustering(G), orient='index').sort_index()[0].values  # local clustering
+        M = nx.attribute_mixing_matrix(G, 'classes', mapping={'low': 0, 'mid': 1, 'high':2}) # class mixing matrix
         print('H+C')
         print(H,nx.average_clustering(G))
+        # Persist stats for analysis
         np.save(os.path.join(self.RESULT_PATH, 'M_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'), np.array(M))
         np.save(os.path.join(self.RESULT_PATH, 'K_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'), np.array(K))
         np.save(os.path.join(self.RESULT_PATH, 'R_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'), np.array(R))
         np.save(os.path.join(self.RESULT_PATH, 'C_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'), np.array(C))
         np.save(os.path.join(self.RESULT_PATH, 'H_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'), np.array(H))
-        np.save(os.path.join(self.RESULT_PATH, 'edge_list_'+str(self.designed_node_number)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)+'.npy'), np.array(self.edge_list))
-        del G
         
+        del G  # free memory for the temporary NetworkX graph
+        
+    # ----------------------------------------------------------------
+    # Add edges stored in `self.edge_list` to the NetworKit graph
+    # (Edge creation done in generate_edge_list)
+    # ----------------------------------------------------------------
     def generate_edges(self):
         self.generate_edge_list()
         for row in self.edge_list:
@@ -176,10 +250,17 @@ class NetworkCreators(nk.graph.Graph):
             self.addEdge(source, target)
         # print(f'number of edges = {len(self.edge_list)}')
     
+    # ----------------------------------------------------------------
+    # Cache each node's degree into its 'degree' attribute
+    # ----------------------------------------------------------------
     def set_node_degree(self):
         for node in self.iterNodes():
             self.node_attributes_attachment['degree'][node] = self.degree(node)
     
+    # ----------------------------------------------------------------
+    # Update each node's count of adopted neighbors
+    # (First definition; a duplicate exists below and is kept intact.)
+    # ----------------------------------------------------------------
     def update_num_neighbor_adopted(self):
         for node in self.iterNodes():
             num_neighbor_adopted = 0
@@ -188,7 +269,14 @@ class NetworkCreators(nk.graph.Graph):
                     num_neighbor_adopted += 1
             self.node_attributes_attachment['num_neighbor_adopted'][node] = num_neighbor_adopted
 
+    # ----------------------------------------------------------------
+    # Initialize seed adopters per-tract using empirical curve file:
+    #   - seed_type = 'tract'
+    #   - choose row for `start` year (if start<0, default to 12)
+    #   - scale 'cum_reg' by node scaling factor
+    # ----------------------------------------------------------------
     def create_seed(self):
+        # seed plan 1
         if self.start<0:
             start = 12
         else:
@@ -200,6 +288,10 @@ class NetworkCreators(nk.graph.Graph):
         self.seed_node = dict(zip(seed_emp[self.seed_type].astype(str), seed_emp['cum_reg'])).copy()
         self.seed_node_reset = dict(zip(seed_emp[self.seed_type].astype(str), seed_emp['cum_reg'])).copy()
 
+    # ----------------------------------------------------------------
+    # Update adopted-neighbor counts (duplicate method kept verbatim).
+    # If you prefer a single definition, you could safely remove one.
+    # ----------------------------------------------------------------
     def update_num_neighbor_adopted(self):
         for node in self.iterNodes():
             num_neighbor_adopted = 0
@@ -208,6 +300,11 @@ class NetworkCreators(nk.graph.Graph):
                     num_neighbor_adopted += 1
             self.node_attributes_attachment['num_neighbor_adopted'][node] = num_neighbor_adopted
 
+    # ----------------------------------------------------------------
+    # For each node, count neighbors by class (low/middle/high);
+    # save to CSV and return the DataFrame. Also record `class_focus`
+    # from parameters for later seeding strategy.
+    # ----------------------------------------------------------------
     def cal_class_degree(self):
         node_list = []; low_list = []; middle_list=[]; high_list=[]
         for node in self.iterNodes():
@@ -228,6 +325,10 @@ class NetworkCreators(nk.graph.Graph):
         self.class_focus = self.par[6]
         return df
 
+    # ----------------------------------------------------------------
+    # Reset adoption states; assign seeds either randomly (start>0)
+    # or targeted (start<0) by degree within a chosen class focus.
+    # ----------------------------------------------------------------
     def reset(self):
         self.seed_node = self.seed_node_reset.copy()
         seed_adopters_num = 0
@@ -293,11 +394,12 @@ class NetworkCreators(nk.graph.Graph):
                 self.node_attributes_attachment['adoption'][node] = 1
             self.update_num_neighbor_adopted()
 
+    # ----------------------------------------------------------------
+    # Build the full network: nodes -> edges -> degrees -> seeds -> reset
+    # ----------------------------------------------------------------
     def build_network(self):
         self.generate_nodes()
         self.generate_edges()
         self.set_node_degree()
         self.create_seed()
         self.reset()
-
-

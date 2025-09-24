@@ -6,54 +6,87 @@ import pickle
 import os
 
 class SimulateParameter:
+    # ------------------------------------------------------------
+    # Initialization
+    # ------------------------------------------------------------
     def __init__(self, graph, simulation_paras, start, end, state, county):
         self.G = graph
         self.state = state
         self.county = county
         self.current_simulation_time = 0
         self.current_adoption_number = 0
-        self.p_value = simulation_paras["p_value"]
-        self.q_value = simulation_paras["q_value"]
-        self.return_year = simulation_paras["return_year"]
-        self.return_prob = simulation_paras["return_prob"]
+
+        # Parameters for adoption/return dynamics
+        self.p_value = simulation_paras["p_value"]   # innovation probability (per class)
+        self.q_value = simulation_paras["q_value"]   # imitation probability (per class)
+        self.return_year = simulation_paras["return_year"]  # number of years before possible reversion
+        self.return_prob = simulation_paras["return_prob"]  # probability of reversion
+
+        # Simulation tracking
         self.adoption_history_list = []
         self.start = start
         self.end = end
-        self.empirical_data = pd.read_csv(os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'data', state, county, 'state_curve.csv')))['cum_reg'].values
-        self.empirical_data_group = pickle.load(open(os.path.realpath(os.path.join(os.path.dirname(__file__), '..', 'data', state, county, 'emp_curve_group.pkl')), 'rb'), encoding='bytes')
+
+        # Empirical adoption curves
+        self.empirical_data = pd.read_csv(
+            os.path.realpath(
+                os.path.join(os.path.dirname(__file__), '..', 'data', state, county, 'state_curve.csv')
+            )
+        )['cum_reg'].values
+        self.empirical_data_group = pickle.load(
+            open(
+                os.path.realpath(
+                    os.path.join(os.path.dirname(__file__), '..', 'data', state, county, 'emp_curve_group.pkl')
+                ),
+                'rb'
+            ),
+            encoding='bytes'
+        )
         
+    # ------------------------------------------------------------
+    # Run simulation
+    # ------------------------------------------------------------
     def run(self):
         for i in range(self.end):
             if i <= self.start:
+                # Before/at start: count only initial seed adopters
                 self.adoption_history_list.append(self.G.seed_num)
                 self.current_adoption_number = self.G.seed_num
                 self.current_simulation_time += 1
             else:
+                # After start: apply adoption/return transitions
                 self.transition()
                 self.current_simulation_time += 1
 
-
+    # ------------------------------------------------------------
+    # One time step: adoption and return transitions
+    # ------------------------------------------------------------
     def transition(self):
-        adopted_node_list = []; noadopted_node_list = []
+        adopted_node_list = []    # new adopters
+        noadopted_node_list = []  # nodes reverting to non-adopters
+
         for node_id in range(self.G.current_node_number):
-            # if (self.G.node_attributes_attachment['adoption'][node_id] == 0) and (self.G.node_attributes_attachment['degree'][node_id]>0):
-            if (self.G.node_attributes_attachment['adoption'][node_id] == 1) and (self.current_simulation_time-self.G.node_attributes_attachment["adoption_time"][node_id]>self.return_year):
+            # --- Reversion: previously adopted nodes may revert ---
+            if (self.G.node_attributes_attachment['adoption'][node_id] == 1) and \
+               (self.current_simulation_time - self.G.node_attributes_attachment["adoption_time"][node_id] > self.return_year):
                 return_thr = np.random.random()
                 if self.return_prob > return_thr:
                     noadopted_node_list.append(node_id)
                 
+            # --- Adoption: non-adopters may adopt ---
             if (self.G.node_attributes_attachment['adoption'][node_id] == 0):
                 adopt_thr = np.random.random()
                 class_idx = int(self.G.node_attributes_attachment['class'][node_id])
                 agent_num_neighbor_adopted = self.G.node_attributes_attachment['num_neighbor_adopted'][node_id]
                 try:
-                    network_value = agent_num_neighbor_adopted/self.G.node_attributes_attachment['degree'][node_id]
+                    network_value = agent_num_neighbor_adopted / self.G.node_attributes_attachment['degree'][node_id]
                 except:
                     network_value = 0
                 p = self.p_value[class_idx] + self.q_value[class_idx] * network_value
                 if p > adopt_thr:
                     adopted_node_list.append(node_id)
-            
+        
+        # --- Apply reversion ---
         for node_id in noadopted_node_list:
             self.G.node_attributes_attachment['adoption'][node_id] = 0
             self.G.node_attributes_attachment["adoption_time"][node_id] = -1
@@ -61,6 +94,7 @@ class SimulateParameter:
             for neighbor in self.G.iterNeighbors(node_id):
                 self.G.node_attributes_attachment['num_neighbor_adopted'][neighbor] -= 1
 
+        # --- Apply adoption ---
         for node_id in adopted_node_list:
             self.G.node_attributes_attachment['adoption'][node_id] = 1
             self.G.node_attributes_attachment["adoption_time"][node_id] = self.current_simulation_time
@@ -68,39 +102,55 @@ class SimulateParameter:
             for neighbor in self.G.iterNeighbors(node_id):
                 self.G.node_attributes_attachment['num_neighbor_adopted'][neighbor] += 1
                 
+        # Record current total adoption
         self.adoption_history_list.append(self.current_adoption_number)
-        # print(self.current_adoption_number, len(noadopted_node_list), len(adopted_node_list))
     
+    # ------------------------------------------------------------
+    # Error metrics
+    # ------------------------------------------------------------
     def calculate_absolute_error(self):
+        # Compare simulated vs. empirical adoption (state-level)
         model_data = np.array(self.adoption_history_list) / self.G.scale
         error = np.sum(abs(self.empirical_data[self.start:self.end] - model_data[self.start:self.end])**2)
-        return error/self.end
+        return error / self.end
     
     def calculate_absolute_error_group(self):
+        # Compare simulated vs. empirical adoption (by income group)
         group_num = 3
         adoption_sim_group = {}
         adoption_emp_group = self.empirical_data_group
         error_all = []
         for group_id in range(group_num):
+            # Simulated adoption per group
             adoption_sim_group[group_id] = [0] * self.end
             for node_id in range(self.G.current_node_number):
-                if (self.G.node_attributes_attachment['class'][node_id] == group_id) and (self.G.node_attributes_attachment["adoption_time"][node_id]>-1):
+                if (self.G.node_attributes_attachment['class'][node_id] == group_id) and \
+                   (self.G.node_attributes_attachment["adoption_time"][node_id] > -1):
                     adoption_sim_group[group_id][self.G.node_attributes_attachment["adoption_time"][node_id]] += 1
-            model_data = np.cumsum(np.array(adoption_sim_group[group_id])/self.G.scale)[self.start:]
+            # Cumulative adoption
+            model_data = np.cumsum(np.array(adoption_sim_group[group_id]) / self.G.scale)[self.start:]
             empirical_data = adoption_emp_group[group_id][self.start:self.end]
-            error_all.append(np.sum((model_data-empirical_data)**2))
-        return np.max(error_all)/self.end
+            error_all.append(np.sum((model_data - empirical_data)**2))
+        return np.max(error_all) / self.end
 
+    # ------------------------------------------------------------
+    # Reset simulation
+    # ------------------------------------------------------------
     def reset(self):
         self.adoption_history_list = []
         self.current_simulation_time = 0
         self.current_adoption_number = 0
         self.G.reset()
 
-    def output_curve_by_state(self):# check
+    # ------------------------------------------------------------
+    # Output methods
+    # ------------------------------------------------------------
+    def output_curve_by_state(self):
+        # Return simulated adoption curve (state level)
         return self.adoption_history_list
 
-    def output_curve_by_tract(self):# check
+    def output_curve_by_tract(self):
+        # Return simulated adoption curve aggregated by tract
         zipcode_dict = {}
         for node_id in range(self.G.current_node_number):
             if self.G.node_attributes_attachment['tract'][node_id] not in zipcode_dict:
@@ -110,20 +160,13 @@ class SimulateParameter:
                     self.G.node_attributes_attachment["adoption_time"][node_id]] += 1
         return pd.DataFrame.from_dict(zipcode_dict)
     
-    def output_curve_by_agent(self):# check
+    def output_curve_by_agent(self):
+        # Return adoption time for each agent (node-level)
         zipcode_dict = {}
         for node_id in range(self.G.current_node_number):
             zipcode_dict[node_id] = self.G.node_attributes_attachment["adoption_time"][node_id]
-        return pd.DataFrame.from_dict(zipcode_dict,orient='index', columns=['adoption_time'])
+        return pd.DataFrame.from_dict(zipcode_dict, orient='index', columns=['adoption_time'])
 
-    def output_error_by_state(self):# check
+    def output_error_by_state(self):
+        # Return group-based error metric
         return self.calculate_absolute_error_group()
-
-    def update_num_neighbor_adopted(self):
-        for node in self.iterNodes():
-            num_neighbor_adopted = 0
-            for neighbor in self.iterNeighbors(node):
-                if self.node_attributes_attachment['adoption'][neighbor] == 1 and node != neighbor:
-                    num_neighbor_adopted += 1
-            self.node_attributes_attachment['num_neighbor_adopted'][node] = num_neighbor_adopted
-

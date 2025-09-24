@@ -3,7 +3,7 @@
 #### Jiaman Wu, Ariel Salgado and Marta C. Gonzalez
 
 ## Overview
-The transition from gasoline-powered vehicles to plug-in electric vehicles (PEVs) presents a promising avenue for reducing greenhouse gas emissions. Spatial forecasts of PEV adoption are essential to facilitate this shift as they enable preparation for power grid adaptation. However, forecasting is hindered by the limited data availability at this early stage of adoption. Multiple model calibrations can match current adoption trends but yield divergent forecasts. By leveraging empirical data from places with leading adopters in the US, this study shows that taking into account the spatial and social structure linking potential PEV adopters leads to forecasts of only 25% of the current predictions for 2050. Additionally, spatial social networks reproduce the temporal evolution of the empirical spatial auto-correlations over the last twelve years. At last, the study evaluates the potential impact of various PEV marketing campaigns under prevailing uncertainties, emphasizing the need to tailor strategies to network dynamics for effective PEV promotion.
+The transition from gasoline-powered vehicles to plug-in electric vehicles (PEVs) presents a promising avenue for reducing greenhouse gas emissions. Spatial forecasts of PEV adoption are essential to facilitate this shift as they enable preparation for power grid adaptation. However, forecasting is hindered by the limited data availability at this early stage of adoption. Multiple model calibrations can match current adoption trends but yield divergent forecasts. By leveraging empirical data from places with leading adopters in the US, this study shows that taking into account the spatial and social structure linking potential PEV adopters leads to forecasts of only a third of the current predictions for 2050. Additionally, spatial social networks reproduce the temporal evolution of the empirical spatial auto-correlations over the last twelve years. At last, the study evaluates the potential impact of various PEV marketing campaigns under prevailing uncertainties, emphasizing the need to tailor strategies to network dynamics for effective PEV promotion.
 
 <br/>
 <br/>
@@ -23,7 +23,7 @@ The transition from gasoline-powered vehicles to plug-in electric vehicles (PEVs
 [Setup](#Setup)
 
 <h2 id="Abstract">Abstract</h2>
-In this work, we investigate how spatial social networks influence PEV adoption forecasts by comparing benchmark adoption models at different spatial scales. We first aggregate individual purchase records at state, county, and census tract levels, and then we fit the empirical adoption trends at different levels of spatial aggregation in Washington and California. To that end, we consider two versions of the Bass model: the original BM and the Social Network BM (SocNet BM). We find that before 2022, PEV adoption was primarily driven by individual choices rather than social influences, a dynamic which cannot continue. As a result, both models can be calibrated to fit data up to 2022, but including or excluding social network effects leads to a fourfold difference in projections by 2050. We observe that SocNet BM characterizes the temporal evolution of spatial auto-correlation better than the State/County BM. Also, with limited data, a combination of parameter sets of SocNet BM can fit the current adoption trend but lead to very different forecasts. At last, we point out that promotion campaigns should be designed based on the understanding of spatial social network structure in the area of interest as the effectiveness of campaigns is tied to the local socio-demographical structure. Altogether, the study offers insights on the forecast based on early adopters that is valuable to planning power grid demand and the allocation of charging infrastructure.
+In this work, we investigate how spatial social networks influence PEV adoption forecasts by comparing benchmark adoption models at different spatial scales. We first aggregate individual purchase records at state, county, and census tract levels, and then we fit the empirical adoption trends at different levels of spatial aggregation in Washington and California. To that end, we consider two versions of the Bass model: the original BM and the Social Network BM (SocNet BM). We find that before 2022, PEV adoption was primarily driven by individual choices rather than social influences, a dynamic which cannot continue. As a result, both models can be calibrated to fit data up to 2022, but including or excluding social network effects leads to a threefold difference in projections by 2050. We observe that SocNet BM characterizes the temporal evolution of spatial auto-correlation better than the State/County BM. Also, with limited data, a combination of parameter sets of SocNet BM can fit the current adoption trend but lead to very different forecasts. At last, we point out that promotion campaigns should be designed based on the understanding of spatial social network structure in the area of interest as the effectiveness of campaigns is tied to the local socio-demographical structure. Altogether, the study offers insights on the forecast based on early adopters that is valuable to planning power grid demand and the allocation of charging infrastructure.
 
 
 <h2 id="Dataset">Dataset</h2>
@@ -88,10 +88,10 @@ We follow the method in [[3]](https://www.nature.com/articles/s41598-020-72137-w
 <h2 id="Setup">Setup</h2>
 
 ### Installation
-In order to install all the required files, create a virtual environment and install the files given in `requirements.txt` file.
+In order to install all the required files, create a virtual environment with `environment.yml` file.
 
 ```
-pip install -r requirements.txt
+conda env create -f environment.yml
 ```
 
 ### Implementation
@@ -104,9 +104,54 @@ The structure of code:
 - [NetworkParameter.py](model/NetworkParameter.py): Locate the initial guess of p and q through regression model.
 - [SearchParameter.py](model/SearchParameter.py): Search optimal p and q around initial guess with heuristics. 
 - [SearchParameter.py](model/SearchParameter.py): Simulate diffusion process with estimated p and q.
-
-
-To run demo code for simulation and analysis:
 - [RunState.py](model/RunState.py): Running adoption model calibration and simulation for Washington and California states.
-- [RunCounty.py](model/RunCounty.py): Running adoption model calibration and simulation for a selected county.
+
+Scripts above are connected as below:
+
+<br/>
+<br/>
+<p align="center">
+  <img src="figure/code.pdf" width="900">
+  <br><i> </i>
+</p>
+
+To run demo code for analysis and visualization:
+- [CaseStudyLA.ipynb](model/CaseStudyLA.ipynb): Running case study in Los Angeles.
+- [SupplementaryInfo.ipynb](model/SupplementaryInfo.ipynb): Running results for supplementary information.
 - [VisDataFinal.py](analysis/VisDataFinal.py): Analysis and visualization of simulation results.
+
+To to run fitting and simualtion for one county, please refer to following demo.
+
+```
+import NetworkParameter as npm
+import NetworkPrep as nwp
+
+# configuration 
+
+state = 'ca'
+county = 'Los Angeles'
+emp = pd.read_csv(os.path.join('..','data', state,'wa_new_ev_registrations.csv.gz')).rename(columns={'DOL Transaction Date':'date','2020 Census Tract':'tract','County':'county'})
+number_node = 100
+par = [-1, expr, 3, 3, 0, 13,'None']  # [homo, r_exp, k_exp, k_min, start, end, class_focus]
+rep_num = 10
+anna = 'name'
+
+# data processing
+
+nwp_obj = nwp.NetworkPrep(state, county, emp)
+nwp_obj.createData()
+
+# parameter estimation
+
+npm_obj = npm.NetworkParameter(number_node, par, state, county, rep_num, anna)
+npm_obj.calIntialPQ()
+npm_obj.calFinalPQ()
+```
+
+In order to run fitting and simualtion for all states, use the following command.
+
+```
+cd model
+nohup python -u RunState.py > state_log.log &
+```
+

@@ -1,5 +1,7 @@
 import networkx as nx
 import numpy as np
+import networkx as nx
+import numpy as np
 import os
 import networkit as nk
 import pandas as pd
@@ -11,24 +13,43 @@ from scipy.optimize import leastsq
 from sklearn.linear_model import LinearRegression
 warnings.filterwarnings('ignore')
 
-
+# -------------------------------------------------------------------
+# Residual function for least-squares fitting of Bass diffusion model
+# Arguments:
+#   var = [p, q] innovation & imitation coefficients
+#   t   = time array
+#   y   = observed adoption curve
+#   m   = market size (population)
+# Returns absolute error (with penalty if p,q outside [0,1])
+# -------------------------------------------------------------------
 def residual(var, t, y, m):
     p = var[0]
     q = var[1]
     A = 1/p
+    # Bass diffusion closed form
     Bass = m*(1-A*(np.exp(-(p+q)*t)*p+np.exp(-(p+q)*t)*q)/(1+A*q*np.exp(-(p+q)*t)))  
+    # Penalize invalid parameter ranges
     if (p<0)or(p>1)or(q<0)or(q>1):
         Penalization = 1e30*(np.abs(min(0,p))+max(0,p-1)+np.abs(min(0,q))+max(0,q-1))
         return np.abs(Bass - y) + Penalization
     else:
         return np.abs(Bass - y)
 
+# -------------------------------------------------------------------
+# Fit Bass model parameters (p,q) using least-squares
+# x = time, y = observed adoption, m = market size
+# -------------------------------------------------------------------
 def bassfit(x,y,m):
-    vars = [1e-4,1e-1]
+    vars = [1e-4,1e-1]  # initial guesses for p, q
     varfinal,success = leastsq(residual, vars, args=(x, y, m))
     p = varfinal[0]; q = varfinal[1]
     return p, q
     
+# -------------------------------------------------------------------
+# NetworkParameter class
+#   Handles calibration of diffusion parameters (p,q) for agent-based
+#   vs. Bass models, given demographic and seeding data.
+# -------------------------------------------------------------------
 class NetworkParameter:
     def __init__(self, number_node, par, state, county, rep_num, anna):
         self.state = state
@@ -42,21 +63,34 @@ class NetworkParameter:
         self.end = par[5]
         self.rep_num = rep_num
         self.anna = anna
+        # Load empirical seed and population groupings (pickled)
         self.emp_seed_group = pickle.load(open(os.path.realpath(os.path.join( '..', 'data', self.state, self.county,'emp_seed_group.pkl')), 'rb'), encoding='bytes')
         self.emp_pop_group = pickle.load(open(os.path.realpath(os.path.join( '..', 'data', self.state, self.county,'emp_pop_group.pkl')), 'rb'), encoding='bytes')
+        # Scale factor: number of synthetic nodes / actual population
         self.scale = self.number_node/pd.read_csv(os.path.realpath(os.path.join('..', 'data', self.state, self.county,'demo_data.csv')),converters={'GEOID': str}).fillna(0).POPULATION.sum()
+        # Load demographic data
         self.demo = pd.read_csv(os.path.realpath(os.path.join('..', 'data', self.state, self.county,'demo_data.csv')),converters={'GEOID': str}).fillna(0)
+        # Result directory
         self.RESULT_PATH = os.path.join('..', 'result', self.state, self.county)
 
-        
+    # ----------------------------------------------------------------
+    # Step 1: Estimate initial (p,q) values for Low/Mid/High groups
+    #   - Generate candidate ranges for each group
+    #   - Run ABM simulation search for each candidate set
+    #   - Compare simulated curves to empirical population curves
+    #   - Fit regression mapping ABM (p,q) to Bass (p,q)
+    #   - Save predicted initial seed (p,q) for all groups
+    # ----------------------------------------------------------------
     def calIntialPQ(self):
         emp_seed_group = self.emp_seed_group
         emp_pop_group = self.emp_pop_group
         
+        # Group populations
         m_low = self.demo[self.demo['CLASS']=='Low'].POPULATION.sum()
         m_mid = self.demo[self.demo['CLASS']=='Middle'].POPULATION.sum()
         m_high = self.demo[self.demo['CLASS']=='High'].POPULATION.sum()
 
+        # Define small parameter grids (p,q) for search, or -1 if group missing
         if m_low>0:
             p_abmini_values_low = np.linspace(1e-4,1e-3,3); q_abmini_values_low = np.linspace(1e-3,1e-2,3)
         else:
@@ -70,25 +104,31 @@ class NetworkParameter:
         else:
             p_abmini_values_high = np.array([-1]); q_abmini_values_high = np.array([-1])
 
+        # Cartesian product of candidate parameters across groups
         pq_values = []
         somelist = [p_abmini_values_low,q_abmini_values_low,p_abmini_values_mid,q_abmini_values_mid,p_abmini_values_high,q_abmini_values_high]
         for element in product(*somelist):
             pq_values.append(element)
     
+        # Containers for ABM vs Bass fitted values
         p_bass_values_high = []; q_bass_values_high = []; p_abm_values_high = []; q_abm_values_high = []
         p_bass_values_mid = []; q_bass_values_mid = []; p_abm_values_mid = []; q_abm_values_mid = []
         p_bass_values_low = []; q_bass_values_low = []; p_abm_values_low = []; q_abm_values_low = []
         
+        # Settings for simulation runs
         count = 0; number_node = min(10000,self.number_node); rep_num = 10; start = 0
         scale = number_node/pd.read_csv(os.path.realpath(os.path.join('..', 'data', self.state, self.county,'demo_data.csv')),converters={'GEOID': str}).POPULATION.sum()
         func_name = 'initial_pq_'+self.anna+'_'+str(number_node)+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)
         
+        # Loop over candidate parameter sets
         for p_value_low,q_value_low,p_value_mid,q_value_mid,p_value_high,q_value_high in pq_values:
+            # Compute approximate diffusion horizon using seed min(p,q)
             p_value_seed = min([np.abs(p_value_low),np.abs(p_value_mid),np.abs(p_value_high)]); q_value_seed = min([np.abs(q_value_low),np.abs(q_value_mid),np.abs(q_value_high)])
             t=np.array(range(100))
             A = 1/p_value_seed; bass = (1-A*(np.exp(-(p_value_seed+q_value_seed)*t)*p_value_seed+np.exp(-(p_value_seed+q_value_seed)*t)*q_value_seed)/(1+A*q_value_seed*np.exp(-(p_value_seed+q_value_seed)*t)))  
             end = np.argmax(bass[0+1:100]-bass[0:100-1])+2; t = np.array(range(start,end))
 
+            # Pack parameters into SearchParameter object and run ABM
             p_value_search = [[p_value_low],[p_value_mid],[p_value_high]]
             q_value_search = [[q_value_low],[q_value_mid],[q_value_high]]
 
@@ -96,11 +136,13 @@ class NetworkParameter:
             spmob = SearchParameter(p_value_search, q_value_search, number_node, par_ini, self.state, self.county, rep_num, 0, os.path.join(func_name, str(count)))
             spmob.randomsearch()
             if count == 0:
+                # Sanity check: network must be connected
                 cc = nk.components.ConnectedComponents(spmob.G)
                 cc.run()
                 assert(cc.numberOfComponents()==1)
             del spmob
         
+            # Aggregate adoption curves by income class
             low_curve = []; mid_curve = []; high_curve = []
             for j in range(rep_num):
                 sub_tract = (pd.read_csv(os.path.join(self.RESULT_PATH, os.path.join(func_name, str(count)), 'curves', 'tract_curve_'+str(j)+'.csv'),index_col=0).cumsum(axis=0).transpose()/scale)
@@ -108,6 +150,7 @@ class NetworkParameter:
                 mid_curve.append(emp_pop_group[1].merge(sub_tract,left_on='GEOID',right_on=sub_tract.index)[range(end)].sum())
                 high_curve.append(emp_pop_group[2].merge(sub_tract,left_on='GEOID',right_on=sub_tract.index)[range(end)].sum())
             
+            # Fit Bass parameters to simulated curves
             if m_low>0:
                 p_bass_low,q_bass_low = bassfit(t,np.mean(low_curve,axis=0)[start:end],emp_pop_group[0]['POPULATION'].sum())
             else:
@@ -136,6 +179,7 @@ class NetworkParameter:
                 q_abm_values_high.append(q_value_high)
             count = count+1
 
+        # Fit regression mapping Bass-estimated (p,q) -> ABM (p,q)
         X = []; y=[]
         if m_low>0:
             X += [p_bass_values_low,q_bass_values_low]
@@ -153,6 +197,7 @@ class NetworkParameter:
         print('fit score', reg.score(X, y))
         print('bass seed', [emp_seed_group[0]+emp_seed_group[1]+emp_seed_group[2]])
         
+        # Predict ABM parameters from empirical seeds
         X_prime = []
         if m_low>0:
             X_prime += emp_seed_group[0]
@@ -162,6 +207,7 @@ class NetworkParameter:
             X_prime += emp_seed_group[2]
         y_prime = reg.predict([X_prime])[0]
         
+        # Reassign to groups in order low/mid/high
         count = 0; y_p=[]
         if m_low>0:
             y_p += [y_prime[count],y_prime[count+1]]
@@ -178,10 +224,15 @@ class NetworkParameter:
             count = count + 2
         else:
             y_p += [-1,-1]
+        
         print('initial seed', y_p)
         np.save(os.path.join(self.RESULT_PATH, func_name, 'sim_seed_group.npy'),np.array(y_p))
 
-
+    # ----------------------------------------------------------------
+    # Step 2: Finalize PQ calibration
+    #   - Load initial (p,q) estimates from saved .npy
+    #   - Run SearchParameter with fixed seeds for full simulation
+    # ----------------------------------------------------------------
     def calFinalPQ(self):
         p_value_seed_low, q_value_seed_low, p_value_seed_mid, q_value_seed_mid, p_value_seed_high, q_value_seed_high = np.load(os.path.join(self.RESULT_PATH, os.path.join('initial_pq_'+self.anna+'_'+str(min(10000,self.number_node))+'_'+str(self.homo)+'_'+str(self.r_exp)+'_'+str(self.k_exp)+'_'+str(self.k_min)), 'sim_seed_group.npy'))
         p_value_search = [[p_value_seed_low],[p_value_seed_mid],[p_value_seed_high]]
