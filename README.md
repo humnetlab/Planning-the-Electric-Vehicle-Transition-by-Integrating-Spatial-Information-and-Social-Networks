@@ -111,7 +111,7 @@ Scripts above are connected as below:
 <br/>
 <br/>
 <p align="center">
-  <img src="figure/code.pdf" width="900">
+  <img src="figure/code.png" width="900">
   <br><i> </i>
 </p>
 
