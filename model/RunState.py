@@ -65,7 +65,7 @@ def calDiffusion(batch_id):
 people_per_node = 5; rep_num = 10; expr = 1
 
 # ================================================================================================
-# Washington run : If you don't have core less than 39, please reduce run_core.
+# Washington run: If you have cores less than 39, please reduce run_core.
 # ================================================================================================
 state = 'wa'; run_core = 39
 # Load county list for WA
@@ -86,7 +86,7 @@ for simi in range(4):
     results = parallelize_dataframe([batch_id for batch_id in range(run_core)],calDiffusion,n_cores=run_core)
 
 # ================================================================================================
-# California run : If you don't have core less than 58, please reduce run_core.
+# California run: If you have cores less than 58, please reduce run_core.
 # ================================================================================================
 state = 'ca'; run_core = 58
 # Load county list for CA
