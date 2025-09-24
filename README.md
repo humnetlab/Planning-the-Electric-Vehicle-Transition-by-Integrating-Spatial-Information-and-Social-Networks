@@ -119,7 +119,7 @@ To run demo code for analysis and visualization:
 - [SupplementaryInfo.ipynb](model/SupplementaryInfo.ipynb): Running results for supplementary information.
 - [VisDataFinal.py](analysis/VisDataFinal.py): Analysis and visualization of simulation results.
 
-To to run fitting and simualtion for one county, please refer to following demo.
+To run fitting and simulation for one county, please take a look at the following demo.
 
 ```
 import NetworkParameter as npm
@@ -131,7 +131,7 @@ state = 'ca'
 county = 'Los Angeles'
 emp = pd.read_csv(os.path.join('..','data', state,'wa_new_ev_registrations.csv.gz')).rename(columns={'DOL Transaction Date':'date','2020 Census Tract':'tract','County':'county'})
 number_node = 100
-par = [-1, expr, 3, 3, 0, 13,'None']  # [homo, r_exp, k_exp, k_min, start, end, class_focus]
+par = [-1, 1, 3, 3, 0, 13,'None']  # [homo, r_exp, k_exp, k_min, start, end, class_focus]
 rep_num = 10
 anna = 'name'
 
@@ -147,7 +147,7 @@ npm_obj.calIntialPQ()
 npm_obj.calFinalPQ()
 ```
 
-In order to run fitting and simualtion for all states, use the following command.
+To run fitting and simulation for all states, use the following command.
 
 ```
 cd model
