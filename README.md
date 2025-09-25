@@ -83,16 +83,12 @@ where $z_{i}$ is the set of agents having connections with node $i$. The formula
 
 #### Fitting Procedure
 
-We follow the method in [[3]](https://www.nature.com/articles/s41598-020-72137-w). Without loss of generality, we take one county as an example to illustrate the procedure. The procedure consists of two stages: locating the initial point and searching for the optimal solution. 
+We follow the method in [[3]](https://www.nature.com/articles/s41598-020-72137-w). Without loss of generality, we take one county as an example to illustrate the procedure. The procedure consists of two stages: locating the initial point and searching for the optimal solution. The implementation was carried out on a Linux system with Python version 3.11.3, required dependency is recorded in environment.yml.
 
 <h2 id="Setup">Setup</h2>
 
 ### Installation
-In order to install all the required files, create a virtual environment with `environment.yml` file.
-
-```
-conda env create -f environment.yml
-```
+The implementation was carried out on a Linux system with Python 3.11.3, and the required dependencies are listed in `environment.yml`.
 
 ### Implementation
 
@@ -150,7 +146,6 @@ npm_obj.calFinalPQ()
 To run fitting and simulation for all states, use the following command.
 
 ```
-cd model
 nohup python -u RunState.py > state_log.log &
 ```
 
