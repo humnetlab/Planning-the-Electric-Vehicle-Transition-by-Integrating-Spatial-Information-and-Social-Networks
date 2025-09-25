@@ -283,32 +283,32 @@ class VisData:
         data = data.merge(demo,left_on='GEOID',right_on='GEOID')
         
         ## 1.1 Curves of cumulative adoptions and new adoptions.
-        # data_curve = data.copy()
-        # cdf_curve = (data_curve[emp_names].sum(axis=0)/demo['POPULATION'].sum()).values
-        # pdf_curve = np.concatenate(([cdf_curve[0]],cdf_curve[1:]-cdf_curve[:-1]),axis=None) 
+        data_curve = data.copy()
+        cdf_curve = (data_curve[emp_names].sum(axis=0)/demo['POPULATION'].sum()).values
+        pdf_curve = np.concatenate(([cdf_curve[0]],cdf_curve[1:]-cdf_curve[:-1]),axis=None) 
         
-        # fig = plt.figure(figsize=(2.7,2)) 
-        # axs1 = fig.add_subplot()
+        fig = plt.figure(figsize=(2.7,2)) 
+        axs1 = fig.add_subplot()
         
-        # axs1.plot(range(2010,2023),pdf_curve*100, c=cs2,label='New',marker='d', alpha = 1, linewidth = 0.5)
-        # axs1.set_ylim(0,0.5)
-        # axs1.set_ylabel('New Adoption Rate [%]')
+        axs1.plot(range(2010,2023),pdf_curve*100, c=cs2,label='New',marker='d', alpha = 1, linewidth = 0.5)
+        axs1.set_ylim(0,0.5)
+        axs1.set_ylabel('New Adoption Rate [%]')
         
-        # axs = axs1.twinx() 
-        # axs.plot(range(2010,2023,2),cdf_curve[::2]*100, c=cs,label='Total',marker='s')
-        # axs.set_ylim(0,2.5)
-        # axs.set_ylabel('Total Adoption Rate [%]')
-        # axs.set_xlabel('Year')
+        axs = axs1.twinx() 
+        axs.plot(range(2010,2023,2),cdf_curve[::2]*100, c=cs,label='Total',marker='s')
+        axs.set_ylim(0,2.5)
+        axs.set_ylabel('Total Adoption Rate [%]')
+        axs.set_xlabel('Year')
         
-        # fig.legend(loc='upper left',bbox_to_anchor=(0.25, 0, 0, 0.9))
-        # plt.tight_layout()
-        # if not os.path.exists(os.path.join( self.FIGURE_PATH)):
-        #     os.makedirs(os.path.join( self.FIGURE_PATH))
-        # plt.savefig(os.path.join( self.FIGURE_PATH,'now_curve_rate.pdf'),dpi=300,bbox_inches='tight')
-        # print('cdf_curve')
-        # print(cdf_curve*100)
-        # print('pdf_curve')
-        # print(pdf_curve*100)
+        fig.legend(loc='upper left',bbox_to_anchor=(0.25, 0, 0, 0.9))
+        plt.tight_layout()
+        if not os.path.exists(os.path.join( self.FIGURE_PATH)):
+            os.makedirs(os.path.join( self.FIGURE_PATH))
+        plt.savefig(os.path.join( self.FIGURE_PATH,'now_curve_rate.pdf'),dpi=300,bbox_inches='tight')
+        print('cdf_curve')
+        print(cdf_curve*100)
+        print('pdf_curve')
+        print(pdf_curve*100)
 
         ## 1.2 Map of adopters distribution.
         data = pd.read_csv(os.path.join( '..', 'data', self.state, self.state+'_data.csv'),converters={'GEOID': str})
@@ -374,33 +374,33 @@ class VisData:
         
         
         # 1.3 Correlation map
-        # data = pd.read_csv(os.path.join( '..', 'data', self.state, self.state+'_data.csv'),converters={'GEOID': str})
-        # emp_names = []
-        # for i in range(13):
-        #     emp_names.append('EMP_'+str(i))
-        # data = data.drop_duplicates(subset=['GEOID','CLASS'])
-        # data = pd.pivot_table(data, values=emp_names+['POPULATION','INCOME'], index=['GEOID'], aggfunc="sum", fill_value=0).reset_index()
+        data = pd.read_csv(os.path.join( '..', 'data', self.state, self.state+'_data.csv'),converters={'GEOID': str})
+        emp_names = []
+        for i in range(13):
+            emp_names.append('EMP_'+str(i))
+        data = data.drop_duplicates(subset=['GEOID','CLASS'])
+        data = pd.pivot_table(data, values=emp_names+['POPULATION','INCOME'], index=['GEOID'], aggfunc="sum", fill_value=0).reset_index()
         
-        # data_map = data.copy()
-        # data_map['RATE'] = data_map['EMP_12']/data_map['POPULATION']*100
-        # data_map['INCOME'] = data_map['INCOME']/1000
-        # data_map = self.tract_shp.merge(data_map, left_on = 'GEOID', right_on = 'GEOID')
-        # data_map = data_map[data_map['RATE']<=15]
+        data_map = data.copy()
+        data_map['RATE'] = data_map['EMP_12']/data_map['POPULATION']*100
+        data_map['INCOME'] = data_map['INCOME']/1000
+        data_map = self.tract_shp.merge(data_map, left_on = 'GEOID', right_on = 'GEOID')
+        data_map = data_map[data_map['RATE']<=15]
         
-        # g = sns.jointplot(x="INCOME", y="RATE", data=data_map,
-        #           kind="reg", truncate=True,
-        #           xlim=(0, 250), ylim = (0,15),
-        #           color=cs, height=2.2, scatter_kws={'s': 0.05},
-        #           line_kws={'color': 'black', 'linewidth': 2.5})
-        # g.set_axis_labels('Income [1,000 $]', 'Adoption Rate [%]')
-        # if not os.path.exists(os.path.join( self.FIGURE_PATH)):
-        #     os.makedirs(os.path.join( self.FIGURE_PATH))
-        # plt.savefig(os.path.join( self.FIGURE_PATH,'now_scatter_income.pdf'),dpi=300,bbox_inches='tight')
+        g = sns.jointplot(x="INCOME", y="RATE", data=data_map,
+                  kind="reg", truncate=True,
+                  xlim=(0, 250), ylim = (0,15),
+                  color=cs, height=2.2, scatter_kws={'s': 0.05},
+                  line_kws={'color': 'black', 'linewidth': 2.5})
+        g.set_axis_labels('Income [1,000 $]', 'Adoption Rate [%]')
+        if not os.path.exists(os.path.join( self.FIGURE_PATH)):
+            os.makedirs(os.path.join( self.FIGURE_PATH))
+        plt.savefig(os.path.join( self.FIGURE_PATH,'now_scatter_income.pdf'),dpi=300,bbox_inches='tight')
         
-        # reg = LinearRegression(fit_intercept=True).fit(data_map['INCOME'].values.reshape(-1, 1), data_map['RATE'].values.reshape(-1, 1))
-        # print('fit score:', reg.score(data_map['INCOME'].values.reshape(-1, 1), data_map['RATE'].values.reshape(-1, 1)))
-        # print('fit pearson:', sp.stats.pearsonr(data_map['INCOME'].values, data_map['RATE'].values))
-        # print('fit parameter:', reg.coef_, reg.intercept_)
+        reg = LinearRegression(fit_intercept=True).fit(data_map['INCOME'].values.reshape(-1, 1), data_map['RATE'].values.reshape(-1, 1))
+        print('fit score:', reg.score(data_map['INCOME'].values.reshape(-1, 1), data_map['RATE'].values.reshape(-1, 1)))
+        print('fit pearson:', sp.stats.pearsonr(data_map['INCOME'].values, data_map['RATE'].values))
+        print('fit parameter:', reg.coef_, reg.intercept_)
 
     # ------------------------------------------------------------
     # 2. Analyze adoption (p/q distributions, boxplots)
